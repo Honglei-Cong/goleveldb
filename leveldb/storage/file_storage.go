@@ -574,43 +574,6 @@ func (fs *fileStorage) Close() error {
 	return fs.flock.release()
 }
 
-type fileWrap struct {
-	*os.File
-	fs     *fileStorage
-	fd     FileDesc
-	closed bool
-}
-
-func (fw *fileWrap) Sync() error {
-	if err := fw.File.Sync(); err != nil {
-		return err
-	}
-	if fw.fd.Type == TypeManifest {
-		// Also sync parent directory if file type is manifest.
-		// See: https://code.google.com/p/leveldb/issues/detail?id=190.
-		if err := syncDir(fw.fs.path); err != nil {
-			fw.fs.log(fmt.Sprintf("syncDir: %v", err))
-			return err
-		}
-	}
-	return nil
-}
-
-func (fw *fileWrap) Close() error {
-	fw.fs.mu.Lock()
-	defer fw.fs.mu.Unlock()
-	if fw.closed {
-		return ErrClosed
-	}
-	fw.closed = true
-	fw.fs.open--
-	err := fw.File.Close()
-	if err != nil {
-		fw.fs.log(fmt.Sprintf("close %s: %v", fw.fd, err))
-	}
-	return err
-}
-
 func fsGenName(fd FileDesc) string {
 	switch fd.Type {
 	case TypeManifest:
